@@ -68,7 +68,6 @@ pub contract Approver {
         priv var allowanceCaps: {Address: [Capability<&{AllowanceProvider, AllowanceInfo}>]}
 
         pub fun addAllowanceCap(_ cap: Capability<&{AllowanceProvider, AllowanceInfo}>) {
-            // TODO: 需要这样写吗？取出来再重新赋值？
             let caps: [Capability<&{AllowanceProvider, AllowanceInfo}>] = self.allowanceCaps[cap.address] ?? []
             caps.append(cap)
             self.allowanceCaps[cap.address] = caps
