@@ -26,14 +26,12 @@ describe("Approver", () => {
 		return await new Promise(r => setTimeout(r, 2000));
 	})
 
-  it("Due to the bugs of flow-js-testing, we have to put all cases in this block", async () => {
+  it("should be ok if Bob transfer Alice's FUSD in the range of allowance", async () => {
     await deployContracts()
-    await setupAccounts()
-    // Allowance is 100.0 < 500.0, so the tx should be succeed
-    // Bob transferred Alice's 100.0 FUSD to Carl
-    // So Alice's balance = 1000.0 - 100.0 = 900.0
-    // Carl's balance = 100.0
-    // Allowance value = 500.0 - 100.0 = 400.0
+    // Alice's balance = 1000.0
+    // Bob's allowance = 500.0
+    await setupAccounts(1000.0, 500.0)
+
     const Alice = await getAccountAddress("Alice")
     const Bob = await getAccountAddress("Bob")
     const Carl = await getAccountAddress("Carl")
@@ -43,56 +41,113 @@ describe("Approver", () => {
     await checkBalance(Alice, 900.0)
     await checkBalance(Carl, 100.0)
     await checkAllowance(Alice, Bob, 400.0)
+  })
 
-    // Allowance is 400.0 now, less than 500.0
-    let [tx2, err2] = await transferFrom(Bob, Alice, Bob, 500.0)
-    expect(err2).not.toBeNull()
-    expect(err2.includes("Withdraw amount exceed allowance value")).toBeTruthy()
+  it("should be ok if Bob transfer Alice's FUSD which is exactly the allowance", async () => {
+    await deployContracts()
+    await setupAccounts(1000.0, 500.0)
 
-    // Now the balance of Alice's vault is less than the allowance value
-    await setAllowance(Alice, Bob, 2000.0)
+    const Alice = await getAccountAddress("Alice")
+    const Bob = await getAccountAddress("Bob")
+
+    let [tx, err] = await transferFrom(Bob, Alice, Bob, 500.0)
+    expect(err).toBeNull()
+    await checkBalance(Alice, 500.0)
+    await checkBalance(Bob, 500.0)
+    await checkAllowance(Alice, Bob, 0.0)
+  })
+
+  it("should be ok if Bob transfer Alice's FUSD which is exactly Alice's balance", async () => {
+    await deployContracts()
+    await setupAccounts(1000.0, 1500.0)
+
+    const Alice = await getAccountAddress("Alice")
+    const Bob = await getAccountAddress("Bob")
+
+    let [tx, err] = await transferFrom(Bob, Alice, Bob, 1000.0)
+    expect(err).toBeNull()
+    await checkBalance(Alice, 0.0)
+    await checkBalance(Bob, 1000.0)
+    await checkAllowance(Alice, Bob, 500.0)
+  })
+
+  it("should be failed if Bob transfer Alice's FUSD exceed allowance", async () => {
+    await deployContracts()
+    await setupAccounts(1000.0, 500.0)
+
+    const Alice = await getAccountAddress("Alice")
+    const Bob = await getAccountAddress("Bob")
+
+    let [tx, err] = await transferFrom(Bob, Alice, Bob, 800.0)
+    expect(err).not.toBeNull()
+    expect(err.includes("Withdraw amount exceed allowance value")).toBeTruthy()
+  })
+
+  it("should be failed if Bob transfer Alice's FUSD exceed Alice's balance", async () => {
+    await deployContracts()
+    await setupAccounts(1000.0, 2000.0)
+
+    const Alice = await getAccountAddress("Alice")
+    const Bob = await getAccountAddress("Bob")
+
+    let [tx, err] = await transferFrom(Bob, Alice, Bob, 1500.0)
+    expect(err).not.toBeNull()
+    expect(err.includes("Withdraw amount exceed vault's balance")).toBeTruthy()
+  })
+
+  it("should ok if Alice reset Bob's allowance", async () => {
+    await deployContracts()
+    await setupAccounts(1000.0, 2000.0)
+
+    const Alice = await getAccountAddress("Alice")
+    const Bob = await getAccountAddress("Bob")
+
     await checkAllowance(Alice, Bob, 2000.0)
     await checkAllowance_spender(Alice, Bob, 2000.0)
-    let [tx3, err3] = await transferFrom(Bob, Alice, Bob, 1000.0)
-    expect(err3).not.toBeNull()
-    expect(err3.includes("Withdraw amount exceed vault's balance")).toBeTruthy()
+
+    await setAllowance(Alice, Bob, 100.0)
+
+    await checkAllowance(Alice, Bob, 100.0)
+    await checkAllowance_spender(Alice, Bob, 100.0)
+  })
+
+  it("should be failed if Bob want to transfer Alice's FUSD after Alice cancel the allowance", async () => {
+    await deployContracts()
+    await setupAccounts(1000.0, 1000.0)
+
+    const Alice = await getAccountAddress("Alice")
+    const Bob = await getAccountAddress("Bob")
 
     await cancelAllowance(Alice, Bob)
     await checkAllowance(Alice, Bob, "Could not borrow AllowanceInfo capability")
     await checkAllowance_spender(Alice, Bob, 0.0)
-    let [tx4, err4] = await transferFrom(Bob, Alice, Bob, 100.0)
-    expect(err4).not.toBeNull()
-    expect(err4.includes("unexpectedly found nil while forcing an Optional value")).toBeTruthy()
+    let [tx, err] = await transferFrom(Bob, Alice, Bob, 100.0)
+    expect(err).not.toBeNull()
+    expect(err.includes("unexpectedly found nil while forcing an Optional value")).toBeTruthy()
+  })
+
+  it("should be ok if Bob transfer Alice's FUSD after Alice recover the allowance", async () => {
+    await deployContracts()
+    await setupAccounts(1000.0, 1000.0)
+
+    const Alice = await getAccountAddress("Alice")
+    const Bob = await getAccountAddress("Bob")
+
+    await cancelAllowance(Alice, Bob)
 
     await recoverAllowance(Alice, Bob)
-    await checkAllowance(Alice, Bob, 2000.0)
-    await checkAllowance_spender(Alice, Bob, 2000.0)
-    let [tx5, err5] = await transferFrom(Bob, Alice, Bob, 100.0)
-    expect(err5).toBeNull()
-    await checkBalance(Alice, 800.0)
+    await checkAllowance(Alice, Bob, 1000.0)
+    await checkAllowance_spender(Alice, Bob, 1000.0)
+    let [tx, err] = await transferFrom(Bob, Alice, Bob, 100.0)
+    expect(err).toBeNull()
+    await checkBalance(Alice, 900.0)
     await checkBalance(Bob, 100.0)
-    await checkAllowance(Alice, Bob, 1900.0)
-    await checkAllowance_spender(Alice, Bob, 1900.0)
-
-    // Transfer amount is exactly the vault balance
-    let [tx6, err6] = await transferFrom(Bob, Alice, Alice, 800.0)
-    expect(err6).toBeNull()
-    await checkBalance(Alice, 800.0)
-    await checkBalance(Bob, 100.0)
-    await checkAllowance(Alice, Bob, 1100.0)
-    await checkAllowance_spender(Alice, Bob, 1100.0)
-
-    // Now Alice has 1200.0 FUSD, and allowance value is 1100.0 FUSD
-    // Transfer amount is exactly the allowance value
-    await mintFUSD(Alice, 400.0, Alice)
-    let [tx7, err7] = await transferFrom(Bob, Alice, Bob, 1100.0)
-    expect(err7).toBeNull()
-    await checkBalance(Alice, 100.0)
-    await checkBalance(Bob, 1200.0)
-    await checkAllowance(Alice, Bob, 0.0)
-    await checkAllowance_spender(Alice, Bob, 0.0)
+    await checkAllowance(Alice, Bob, 900.0)
+    await checkAllowance_spender(Alice, Bob, 900.0)
   })
 })
+
+// Helpers
 
 async function deployContracts() {
   const Alice = await getAccountAddress("Alice")
@@ -100,7 +155,7 @@ async function deployContracts() {
   await deploy(Alice, "FUSD")
 }
 
-async function setupAccounts() {
+async function setupAccounts(mintAmount, allowance) {
   const Alice = await getAccountAddress("Alice")
   const Bob = await getAccountAddress("Bob")
   const Carl = await getAccountAddress("Carl")
@@ -109,14 +164,13 @@ async function setupAccounts() {
   await setupFUSDVault(Bob)
   await setupFUSDVault(Carl)
 
-  const mintAmount = 1000.0
   await mintFUSD(Alice, mintAmount, Alice)
   await checkBalance(Alice, mintAmount)
 
   await setupAllowanceCapReceiver(Bob)
-  await approve(Alice, Bob, 500.0)
+  await approve(Alice, Bob, allowance)
 
-  await checkAllowance(Alice, Bob, 500.0)
+  await checkAllowance(Alice, Bob, allowance)
 }
 
 async function deploy(deployer, contractName) {
