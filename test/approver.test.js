@@ -181,7 +181,7 @@ async function transferFrom(spender, from, to, value) {
 async function getAllowanceInfo_approver(approver, spender) {
   const name = "get_allowance_info_approver"
   const args = [approver, spender]
-  return await shallResolve(executeScript({name: name, args: args}))
+  return await executeScript({name: name, args: args})
 }
 
 async function getAllowanceInfos_spender(approver, spender) {
