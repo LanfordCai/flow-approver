@@ -22,9 +22,9 @@ describe("Approver", () => {
   })
 
   afterEach(async () => {
-		await emulator.stop();
-		return await new Promise(r => setTimeout(r, 2000));
-	})
+    await emulator.stop();
+    return await new Promise(r => setTimeout(r, 2000));
+  })
 
   it("should be ok if Bob transfer Alice's FUSD in the range of allowance", async () => {
     await deployContracts()
